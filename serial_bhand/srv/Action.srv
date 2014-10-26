@@ -1,0 +1,15 @@
+# action Command
+int32 INITIALIZE = 0
+int32 OPEN       = 1
+int32 CLOSE      = 2
+int32 T_OPEN     = 3
+int32 T_CLOSE    = 4
+int32 S_OPEN     = 5
+int32 S_CLOSE    = 6
+int32 SET_SPEED  = 7
+int32 COMMAND    = 10
+
+int32 order
+string s_order
+---
+bool result

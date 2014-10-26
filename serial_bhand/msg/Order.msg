@@ -1,0 +1,4 @@
+# orders
+int32 INIT_HAND=1
+int32 OPEN_HAND=2
+int32 CLOSE_HAND=3
