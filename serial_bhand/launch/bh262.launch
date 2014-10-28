@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
 <launch>
 	 <node name="bhand_node" pkg="serial_bhand" type="bhand_node.py"/>
+	 <node name="bhand_gui" pkg="serial_bhand" type="bhand_gui.py"/>
 </launch>
