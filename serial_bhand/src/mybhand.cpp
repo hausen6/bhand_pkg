@@ -238,7 +238,7 @@ bool bhandService(serial_bhand::Action::Request &req,
 		else if (req.order == req.COMMAND){/*{{{*/ // Another Commands
                 char buf[100];
 				ROS_INFO("COMMAND MODE");
-				if (result = bh.Command(req.s_order.c_str(), buf)) {
+				if (result = bh.Command("", buf)) {
 						res.result = false;
 						Error();
 				}
@@ -281,18 +281,8 @@ int main(int argc, char **argv)
 	UnbufferedInputStart();
 
 	// Initialize Hand
-	serial_bhand::State state;
-	std::string str;
-	str = "INIT_NO";
-	state.stateInfo = str;
-	state.state = serial_bhand::State::INIT_NO;
-	state_pub.publish(state);
 	printf("\n\n\r\t\tInitializing Software...");
 	Initialize(argv[1]);
-	state.state = serial_bhand::State::INIT_OK;
-	str = "INIT_OK";
-	state.stateInfo = str;
-	state_pub.publish(state);
 
 	ros::spin();
 

@@ -10,6 +10,5 @@ int32 SET_SPEED  = 7
 int32 COMMAND    = 10
 
 int32 order
-string s_order
 ---
 bool result
