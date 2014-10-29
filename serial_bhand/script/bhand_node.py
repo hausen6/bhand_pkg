@@ -114,6 +114,7 @@ class BHandStatus():
         tmp.append("S")
         args = [fInfo.f1, fInfo.f2, fInfo.f3, fInfo.f4]
         for i, f, arg in zip(tmp, self.pos.fs, args):
+            print f
             self.connect.command("{0}M {1}".format(i, arg))
         return bhs.SetFingerInfoResponse(True)
         #}}}
