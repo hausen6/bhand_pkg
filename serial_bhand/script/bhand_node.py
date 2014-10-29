@@ -27,33 +27,53 @@ class BHandStatus():
         # ros
         rospy.init_node("bhand_node")
         self.pub       = rospy.Publisher("{0}/status".format(rospy.get_name()), State)
+        self.pubPos = rospy.Publisher("{0}/FingerPos".format(rospy.get_name()), bhm.FingerInfo)
+        self.pubVel = rospy.Publisher("{0}/FingerVel".format(rospy.get_name()), bhm.FingerInfo)
+        self.srvSetPos = rospy.Service("{0}/setFingerPos".format(rospy.get_name()), bhs.SetFingerInfo, self.setPos)
+        self.srvSetVel = rospy.Service("{0}/setFingerVel".format(rospy.get_name()), bhs.SetFingerInfo, self.setVel)
         self.action    = rospy.Service("{0}/action".format(rospy.get_name()), bhs.Action, self.action)
-        self.subSetPos = rospy.Subscriber("{0}/FingerPos".format(rospy.get_name()), bhm.FingerInfo, self.setPos)
-        self.subSetVel = rospy.Subscriber("{0}/FingerVel".format(rospy.get_name()), bhm.FingerInfo, self.setVel)
 
         self.pos = Finger()
-        self.Openvel = Finger()
-        self.Closevel = Finger()
+        self.vel = Finger()
         self.connect = BHandConnect()
         self.Init = False
         self.Fstate = False
         self.Sstate = False
+
+        self.lock = False
         #}}}
 
     def intResultFilter(self, command):
-        while 1:#{{{
-            res_filter = re.compile(r"¥d+")
-            self.connect.serial_handle.readall()
-            self.connect.command(command)
-            self.connect.serial_handle.readline()
-            res = self.connect.serial_handle.readall()
-            searchRes = res_filter.search(res)
-            if searchRes:
-                searchRes = searchRes.group(0)
-                return searchRes#}}}
+        #{{{
+        int_filter = re.compile(r"\d+")
+        word_filter = re.compile(r"[a-zA-Z]+")
+
+        # blocking other process is running
+        while self.lock:
+            rospy.loginfo("wait ...")
+            rospy.sleep(0.5)
+            
+        self.lock = True
+        self.connect.command(command)
+        lines = self.connect.serial_handle.readlines()
+        res = -1
+        for l in lines:
+            # search words include or not
+            l = l.replace("\r", "").replace("\n", "")
+            test = word_filter.search(l)
+            if test:
+                continue
+            # get result
+            test = int_filter.search(l)
+            if test:
+                rospy.loginfo(" Matching => {}".format(l))
+                res = int(l)
+        self.lock = False
+        return res
+            #}}}
 
     def getPos(self):
-        # TODO: command CHECK!!!#{{{
+        #{{{
         tmp = range(1, 4)
         tmp.append("S")
         tmpRes = []
@@ -64,31 +84,23 @@ class BHandStatus():
         self.pos.f1 = tmpRes[0]
         self.pos.f2 = tmpRes[1]
         self.pos.f3 = tmpRes[2]
-        self.pos.f4 = tmpRes[3]#}}}
+        self.pos.f4 = tmpRes[3]
+        #}}}
 
     def getVel(self):
         tmp = range(1, 4)#{{{
         tmp.append("S")
         tmpRes = []
-        # TODO: command CHECK!!!
-        for i, f in zip(tmp, self.Openvel.fs):
-            self.connect.command("{0}FGET MOV".format(i))
+        for i, f in zip(tmp, self.vel.fs):
             cmd = "{0}FGET MOV".format(i)
             res = self.intResultFilter(cmd)
             tmpRes.append(int(res))
-        self.Openvel.f1 = tmpRes[0]
-        self.Openvel.f2 = tmpRes[1]
-        self.Openvel.f3 = tmpRes[2]
-        self.Openvel.f4 = tmpRes[3]
+        self.vel.f1 = tmpRes[0]
+        self.vel.f2 = tmpRes[1]
+        self.vel.f3 = tmpRes[2]
+        self.vel.f4 = tmpRes[3]
         tmpRes = []
-        for i, f in zip(tmp, self.Closevel.fs):
-            cmd = "{0}FGET MCV".format(i)
-            res = self.intResultFilter(cmd)
-            tmpRes.append(int(res))
-        self.Closevel.f1 = tmpRes[0]
-        self.Closevel.f2 = tmpRes[1]
-        self.Closevel.f3 = tmpRes[2]
-        self.Closevel.f4 = tmpRes[3]#}}}
+        # }}}
 
     def setPos(self, fInfo):
         #{{{
@@ -103,12 +115,11 @@ class BHandStatus():
         args = [fInfo.f1, fInfo.f2, fInfo.f3, fInfo.f4]
         for i, f, arg in zip(tmp, self.pos.fs, args):
             self.connect.command("{0}M {1}".format(i, arg))
-        self.connect.serial_handle.readall()
-        return 0
+        return bhs.SetFingerInfoResponse(True)
         #}}}
 
     def setVel(self, fInfo):
-        # TODO: command CHECK!!!#{{{
+        # {{{
         """
         @param _f1: [int] target velosity
         @param _f2: [int] target velosity
@@ -118,12 +129,11 @@ class BHandStatus():
         tmp = range(1, 4)
         tmp.append("S")
         args = [fInfo.f1, fInfo.f2, fInfo.f3, fInfo.f4]
-        for i, f, arg in zip(tmp, self.Openvel.fs, args):
+        for i, f, arg in zip(tmp, self.vel.fs, args):
             self.connect.command("{0}FSET MOV {1}".format(i, arg))
-        for i, f, arg in zip(tmp, self.Openvel.fs, args):
+        for i, f, arg in zip(tmp, self.vel.fs, args):
             self.connect.command("{0}FSET MCV {1}".format(i, arg))
-        self.connect.serial_handle.readall()
-        return 0
+        return bhs.SetFingerInfoResponse(True)
         #}}}
 
     def action(self, req):
@@ -152,7 +162,6 @@ class BHandStatus():
             self.Sstate = False
         elif req.order == req.COMMAND:
             self.connect.command(req.s_order)
-        self.connect.serial_handle.readall()
         return bhs.ActionResponse(True)
     #}}}
 
@@ -160,30 +169,31 @@ class BHandStatus():
         self.connect.connectPort(_port, _boud)#{{{
         self.action
         r = rospy.Rate(1)
+        res = self.connect.serial_handle.readline()
         while not rospy.is_shutdown():
-            res = self.connect.serial_handle.readall()
             while not res == "":
                 res = self.connect.serial_handle.readline()
 
-            self.getPos()
-            self.getVel()
             self.pub.publish(
-                # state
-                self.Init,
-                self.Fstate,
-                self.Sstate,
-                # finger positions
-                self.pos.f1,
-                self.pos.f2,
-                self.pos.f3,
-                self.pos.f4,
-                # finger open velosity
-                self.Openvel.f1,
-                self.Openvel.f4,
-                # finger close velosity
-                self.Closevel.f1,
-                self.Closevel.f4,
-                )
+                    self.Init, self.Fstate, self.Sstate
+                    )
+            # self.pub.publish(
+            #     # state
+            #     self.Init, self.Fstate, self.Sstate,
+            #     # finger positions
+            #     self.pos.f1, self.pos.f2, self.pos.f3, self.pos.f4,
+            #     # finger open velosity
+            #     self.Openvel.f1, self.Openvel.f4,
+            #     # finger close velosity
+            #     self.Closevel.f1, self.Closevel.f4,)
+            self.getPos()
+            self.pubPos.publish(
+                    self.pos.f1, self.pos.f2, self.pos.f3, self.pos.f4,
+                    )
+            self.getVel()
+            self.pubVel.publish(
+                    self.vel.f1, self.vel.f2, self.vel.f3, self.vel.f4,
+                    )
             r.sleep()#}}}#}}}
 
 if __name__ == '__main__':
