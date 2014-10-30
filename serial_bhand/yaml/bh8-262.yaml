@@ -1,0 +1,2 @@
+port: /dev/ttyUSB0
+boud: 9600

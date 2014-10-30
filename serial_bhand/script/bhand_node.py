@@ -55,21 +55,25 @@ class BHandStatus():
             
         self.lock = True
         self.connect.command(command)
-        lines = self.connect.serial_handle.readlines()
-        res = -1
-        for l in lines:
-            # search words include or not
-            l = l.replace("\r", "").replace("\n", "")
-            test = word_filter.search(l)
-            if test:
-                continue
-            # get result
-            test = int_filter.search(l)
-            if test:
-                rospy.loginfo(" Matching => {}".format(l))
-                res = int(l)
-        self.lock = False
-        return res
+        try:
+            lines = self.connect.serial_handle.readlines()
+            res = -1
+            for l in lines:
+                # search words include or not
+                l = l.replace("\r", "").replace("\n", "")
+                test = word_filter.search(l)
+                if test:
+                    continue
+                # get result
+                test = int_filter.search(l)
+                if test:
+                    rospy.loginfo(" Matching => {}".format(l))
+                    res = int(l)
+            self.lock = False
+            return res
+        except Exception, e:
+            print(e)
+            exit(0)
             #}}}
 
     def getPos(self):
@@ -198,9 +202,27 @@ class BHandStatus():
             r.sleep()#}}}#}}}
 
 if __name__ == '__main__':
-    hand = BHandStatus()
-    hand.run("/dev/ttyUSB0", 9600)
-    rospy.spin()
+    try:
+        hand = BHandStatus()
+        default_args = {"port": "/dev/ttyUSB0", "boud": 9600}
+        args = {}
+        nodename = rospy.get_name()
+        for k, v in default_args.iteritems():
+            try:
+                if rospy.search_param(k):
+                    args[k] = rospy.get_param("{0}/{1}".format(nodename, k))
+                else:
+                    rospy.loginfo("not found key => dealut_args set")
+                    args[k] = v
+            except rospy.ROSException, e:
+                rospy.logerr(e)
+        hand.run(
+                args["port"], 
+                args["boud"],
+                )
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
 
 # vim:set modeline
 # vim:set foldmethod=marker: # %s
