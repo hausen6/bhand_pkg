@@ -199,7 +199,7 @@ class BHandStatus():
 
 if __name__ == '__main__':
     hand = BHandStatus()
-    hand.run("/dev/ttyUSB2", 9600)
+    hand.run("/dev/ttyUSB0", 9600)
     rospy.spin()
 
 # vim:set modeline
