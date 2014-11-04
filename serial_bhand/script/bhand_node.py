@@ -67,7 +67,6 @@ class BHandStatus():
                 # get result
                 test = int_filter.search(l)
                 if test:
-                    rospy.loginfo(" Matching => {}".format(l))
                     res = int(l)
             self.lock = False
             return res

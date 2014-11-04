@@ -21,19 +21,20 @@ class Abuttons(tk.Button):#{{{
     @param text [str]: button name
     @param order [serial_bhand.srv.ActionRequest]: hand service order
     """
-    def __init__(self, master, text, order):
+    def __init__(self, master, target_node, text, order):
         tk.Button.__init__(self, master, text=text, command=self.bhand_action)
         self.order = order
+        self.target_node = target_node
     
     def bhand_action(self):
         """ hand service callbask method """
-        rospy.wait_for_service("bhand_node/action")
-        req = rospy.ServiceProxy("bhand_node/action", bhs.Action)
+        rospy.wait_for_service("{0}/action".format(self.target_node))
+        req = rospy.ServiceProxy("{0}/action".format(self.target_node), bhs.Action)
         req(self.order)
     #}}}
 
 class ActionButtons(tk.LabelFrame):#{{{
-    def __init__(self, master=None):
+    def __init__(self, nodename, master=None):
         tk.LabelFrame.__init__(self, master=master)
         self.configure(text="Actions")
         self.btns = [
@@ -46,19 +47,20 @@ class ActionButtons(tk.LabelFrame):#{{{
                 ("Spread Close", bhs.ActionRequest.S_CLOSE),
                 ]
 
+        self.nodename = nodename
         self.initUI()
 
     def initUI(self):
         """docstring for initUI"""
         for b in self.btns:
-            b = Abuttons(self, text=b[0], order=b[1])
+            b = Abuttons(self, self.nodename, text=b[0], order=b[1])
             b.pack(fill=tk.BOTH)
     #}}}
 
 # ****** BHAND STATE DISCRIPTER ******
 
 class FingerSpeedDiscripter(tk.LabelFrame):#{{{
-    def __init__(self, master=None):
+    def __init__(self, target_node, master=None):
         tk.LabelFrame.__init__(self, master=master, text="Finger Speed")
         self.buffs = [
                 tk.StringVar(),
@@ -66,7 +68,9 @@ class FingerSpeedDiscripter(tk.LabelFrame):#{{{
                 tk.StringVar(),
                 tk.StringVar(),
                 ]
-        self.sub = rospy.Subscriber("bhand_node/FingerVel", bhm.FingerInfo, self.update)
+        self.target_node = target_node
+        rospy.logdebug("{0}/FingerVel".format(self.target_node))
+        self.sub = rospy.Subscriber("{0}/FingerVel".format(self.target_node), bhm.FingerInfo, self.update)
 
         self.initUI()
 
@@ -88,7 +92,7 @@ class FingerSpeedDiscripter(tk.LabelFrame):#{{{
 #}}}
 
 class FingerPositionDiscripter(tk.LabelFrame):#{{{
-    def __init__(self, master=None):
+    def __init__(self, target_node, master=None):
         tk.LabelFrame.__init__(self, master=master, text="Finger Position")
 
         self.buffs = [
@@ -97,7 +101,8 @@ class FingerPositionDiscripter(tk.LabelFrame):#{{{
                 tk.StringVar(),
                 tk.StringVar(),
                 ]
-        self.sub = rospy.Subscriber("bhand_node/FingerPos", bhm.FingerInfo, self.update)
+        self.target_node = target_node
+        self.sub = rospy.Subscriber("{}/FingerPos".format(self.target_node), bhm.FingerInfo, self.update)
 
         self.initUI()
 
@@ -121,7 +126,7 @@ class FingerPositionDiscripter(tk.LabelFrame):#{{{
 # ****** BHAND CONTROLLER ******
 
 class SpeedController(tk.LabelFrame):#{{{
-    def __init__(self, master=None):
+    def __init__(self, target_node, master=None):
         tk.LabelFrame.__init__(self, master=master, text="Speed Controller")
 
         # set default value
@@ -131,6 +136,7 @@ class SpeedController(tk.LabelFrame):#{{{
                 tk.StringVar(),
                 tk.StringVar(),
                 ]
+        self.target_node = target_node
         for i, b in enumerate(self.buffs):
             if i <=2 : b.set("100")
             else: b.set("30")
@@ -152,8 +158,8 @@ class SpeedController(tk.LabelFrame):#{{{
 
     def service(self):
         """docstring for service"""
-        rospy.wait_for_service("bhand_node/setFingerVel")
-        srv = rospy.ServiceProxy("bhand_node/setFingerVel", bhs.SetFingerInfo)
+        rospy.wait_for_service("{}/setFingerVel".format(self.target_node))
+        srv = rospy.ServiceProxy("{}/setFingerVel".format(self.target_node), bhs.SetFingerInfo)
         req = srv(
                 int(self.buffs[0].get()),
                 int(self.buffs[1].get()),
@@ -163,7 +169,7 @@ class SpeedController(tk.LabelFrame):#{{{
     #}}}
 
 class PositionController(tk.LabelFrame):#{{{
-    def __init__(self, master=None):
+    def __init__(self, target_node, master=None):
         tk.LabelFrame.__init__(self, master=master, text="Position Controller")
 
         # set default value
@@ -173,6 +179,7 @@ class PositionController(tk.LabelFrame):#{{{
                 tk.StringVar(),
                 tk.StringVar(),
                 ]
+        self.target_node = target_node
         # HOME Position
         for i, b in enumerate(self.buffs):
             if i <=2 : b.set("0")
@@ -196,8 +203,8 @@ class PositionController(tk.LabelFrame):#{{{
 
     def service(self):
         """docstring for service"""
-        rospy.wait_for_service("bhand_node/setFingerPos")
-        srv = rospy.ServiceProxy("bhand_node/setFingerPos", bhs.SetFingerInfo)
+        rospy.wait_for_service("{}/setFingerPos".format(self.target_node))
+        srv = rospy.ServiceProxy("{}/setFingerPos".format(self.target_node), bhs.SetFingerInfo)
         req = srv(
                 int(self.buffs[0].get()),
                 int(self.buffs[1].get()),
@@ -207,17 +214,32 @@ class PositionController(tk.LabelFrame):#{{{
     #}}}
 
 if __name__ == '__main__':
-    # init window
+    # param get
     rospy.init_node("bhand_gui")
+    default_params = {
+            "target_node": "bhand_node",
+            }
+    nodename = rospy.get_name()
+    for k, v in default_params.iteritems():
+        try:
+            if rospy.search_param(k):
+                target_node = rospy.get_param("{0}/{1}".format(nodename, k))
+                rospy.loginfo(target_node)
+            else:
+                rospy.loginfo("params are not found")
+                target_node = default_params[k]
+        except rospy.ROSException, e:
+            rospy.loginfo(e)
+    # init window
     root = tk.Tk()
     root.title("Barrett Controller")
 
     # create each Frame instance 
-    actionBtn = ActionButtons(root)
-    spdDis = FingerSpeedDiscripter(root)
-    posDis = FingerPositionDiscripter(root)
-    spdCtrl = SpeedController(root)
-    posCtrl = PositionController(root)
+    actionBtn = ActionButtons(target_node, root)
+    spdDis = FingerSpeedDiscripter(target_node, root)
+    posDis = FingerPositionDiscripter(target_node, root)
+    spdCtrl = SpeedController(target_node, root)
+    posCtrl = PositionController(target_node, root)
 
     # layout instance
     actionBtn.grid(row=0, column=0, rowspan=2, sticky="n")
